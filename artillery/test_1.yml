@@ -1,0 +1,46 @@
+config:
+  # target: 'http://localhost:3000'
+  target: "http://dev-project-01-alb-1091378856.ap-northeast-2.elb.amazonaws.com"
+  phases:
+    - duration: 60 # 테스트가 얼마나 지속될 것인지
+      # arrivalRate: 1 # 초당 발생하는 가상 사용자
+      # rampTo : 5 # duration 값 동안 arrivalRate에서 rampTo 값으로 가상 사용자 수가 선형적으로 증가. 
+      arrivalCount : 1000 # 이 값은 테스트 동안 생성할 총 가상 사용자 수. 보통 arrivalRate랑 둘중 하나 사용 
+  defaults:
+    headers:
+      Content-Type: "application/json"
+  processor: "./func.js"
+scenarios:
+  - name: "User sign up, login, get store, createOrder"
+    flow:
+      - function: "generateUUID"
+      - post:
+          url: "/api/v1/users/signup"
+          json:
+            name: "{{ name }}"
+            email: "{{ email }}"
+            password: "password12"
+            type: "CUSTOMER"
+          afterResponse: ["logResponse","generateRandom"] # Your function name
+      - think: "{{ran}}"
+      - post:
+          url: "/api/v1/users/signin"
+          json:
+            email: "{{ email }}"
+            password: "password12"
+          afterResponse: ["extractTokenFromCookie", "logResponse","generateRandom"]
+      - think: "{{ran}}"
+      - get:
+          url: "/api/v1/stores/search?keyword=&page=1&limit=10"
+          headers:
+            authorization: "Bearer {{ accessToken }}"
+          afterResponse: ["saveOrderBody","logResponse","generateRandom"]
+      - think: "{{ran}}"
+      - post:
+          url: "/api/v1/orders"
+          json:
+            storeId : "{{order.storeId}}"
+            orderItem : "{{order.orderItem}}"
+          headers:
+            authorization: "Bearer {{ accessToken }}"
+          afterResponse: ["logResponse"]
